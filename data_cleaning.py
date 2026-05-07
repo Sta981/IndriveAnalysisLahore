@@ -66,9 +66,6 @@ SURVEY_RENAME = {
 
 def clean_survey(path: str = SURVEY_RAW) -> pd.DataFrame:
     sv = pd.read_csv(path)
-
-    # Rename long column headers to short names
-    # Match by partial string since headers may have newlines
     rename_map = {}
     for col in sv.columns:
         for key, val in SURVEY_RENAME.items():

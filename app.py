@@ -98,7 +98,6 @@ if page == "Overview":
         Survey           → User responses (Google Form, public distribution)
         Data Cleaning    → Normalization, missing values, date fixing, feature engineering
         EDA              → 7 visualizations across time, area, fare, weather, bids
-        Predictive Model → Random Forest Regressor (R² ≈ 0.97) to predict final fare
         Dashboard        → This Streamlit app (interactive, portfolio-ready)
         """,
         language="text",
