@@ -3,9 +3,10 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
-from sklearn.preprocessing import LabelEncoder
 
+# Apni purani import aur naya prediction import
 from data_cleaning import clean_trips, clean_survey
+from predictions import train_fare_model, predict_fare
 
 st.set_page_config(
     page_title="inDrive Lahore Analysis",
@@ -26,14 +27,18 @@ def load_data():
 
 df, survey = load_data()
 
+# Model ko background mein train karein
+model, model_columns = train_fare_model(df)
+
 st.sidebar.markdown("## InDrive Lahore")
 st.sidebar.markdown("**Real-world Data Science Project**")
 st.sidebar.markdown("BS Artificial Intelligence · Superior University")
 st.sidebar.divider()
 
+# NAVIGATION MEIN NAYA PAGE ADD KIYA HAI 👇
 page = st.sidebar.radio(
     "Navigate",
-    ["Overview", "Trip Analysis", "Survey Insights"],
+    ["Overview", "Trip Analysis", "Survey Insights", "Fare Predictor (AI)"],
 )
 
 st.sidebar.divider()
@@ -98,6 +103,7 @@ if page == "Overview":
         Survey           → User responses (Google Form, public distribution)
         Data Cleaning    → Normalization, missing values, date fixing, feature engineering
         EDA              → 7 visualizations across time, area, fare, weather, bids
+        Machine Learning → Random Forest Regressor to predict real-time fair prices
         Dashboard        → This Streamlit app (interactive, portfolio-ready)
         """,
         language="text",
@@ -154,13 +160,14 @@ elif page == "Trip Analysis":
     with col4:
         st.subheader("Negotiation Gap: Suggested vs Accepted")
         fig = go.Figure()
-        colors_map = {"Car": PURPLE, "Bike": TEAL, "Rickshaw": CORAL}
-        for ride in ["Car", "Bike", "Rickshaw"]:
+        colors_map = {"Car": PURPLE, "Bike": TEAL, "Rickshaw": CORAL, "rickshaw": CORAL}
+        for ride in df["Ride Type"].unique():
             sub = df[df["Ride Type"] == ride]
+            color = colors_map.get(ride, GRAY)
             fig.add_trace(go.Scatter(
                 x=sub["Suggested Fare (PKR)"], y=sub["Final Accepted Fare (PKR)"],
                 mode="markers", name=ride, opacity=0.5,
-                marker=dict(color=colors_map[ride], size=6)
+                marker=dict(color=color, size=6)
             ))
         max_val = 1800
         fig.add_trace(go.Scatter(x=[0, max_val], y=[0, max_val],
@@ -294,7 +301,6 @@ elif page == "Survey Insights":
                               xaxis_tickangle=-20)
             st.plotly_chart(fig, use_container_width=True)
 
-    # ── Row 3: Recommendation + Weather 
     col6, col7 = st.columns(2)
 
     with col6:
@@ -319,10 +325,63 @@ elif page == "Survey Insights":
             fig.update_layout(height=260, margin=dict(t=10, b=10))
             st.plotly_chart(fig, use_container_width=True)
 
-    # ── Survey summary 
     st.divider()
     st.subheader("Survey Summary")
     s1, s2, s3 = st.columns(3)
     s1.error("**Pain Point #1:** Long wait times & driver rejections (tied at 10 responses each) — supply-demand mismatch proven by data too.")
     s2.info("**Pricing:** 90% of users find inDrive cheaper or equal to Careem/Uber — competitive advantage confirmed.")
     s3.success("**NPS Signal:** 52.5% say Yes to recommending, 37.5% say Maybe — product has satisfied users but fixable gaps remain.")
+
+elif page == "Fare Predictor (AI)":
+    st.title("AI Smart Predictor: Rider vs Driver")
+    st.markdown("Is predictive model mein ab Pickup/Dropoff locations aur timings ka asar bhi shamil hai.")
+    st.divider()
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("#### Route Details")
+        pickup = st.selectbox("Pickup Area", sorted(df['Pickup Area'].unique()))
+        dropoff = st.selectbox("Dropoff Area", sorted(df['Dropoff Area'].unique()))
+        ride_type = st.selectbox("Ride Type", df['Ride Type'].unique())
+
+    with col2:
+        st.markdown("#### Context & App Price")
+        suggested_fare = st.number_input("inDrive Suggested Fare (PKR)", min_value=50, value=350)
+        time_cat = st.selectbox("Time Category", df['Time Category'].unique())
+        traffic = st.selectbox("Traffic Level", df['Traffic Level'].unique())
+        weather = st.selectbox("Weather Condition", df['Weather Condition'].unique())
+
+    if st.button("Calculate Smart Result", type="primary", use_container_width=True):
+        inputs = {
+            'Suggested Fare (PKR)': suggested_fare,
+            'Ride Type': ride_type,
+            'Time Category': time_cat,
+            'Traffic Level': traffic,
+            'Weather Condition': weather,
+            'Pickup Area': pickup,
+            'Dropoff Area': dropoff
+        }
+        
+        predicted_fare = predict_fare(model, model_columns, inputs)
+        
+        st.divider()
+        st.subheader(f"Market Fair Price: ₨ {predicted_fare}")
+
+        rider_col, driver_col = st.columns(2)
+
+        with rider_col:
+            st.info("### For Rider (Sawaari)")
+            gap = predicted_fare - suggested_fare
+            if gap > 0:
+                st.write(f"App ki qeemat kam hai. Ride jaldi lene ke liye **₨ {predicted_fare}** tak offer karein.")
+                st.write(f"**Mashwara:** Aapko suggested fare se taqreeban **₨ {gap}** ooper dena paray ga.")
+            else:
+                st.write("App ki qeemat theek hai. Is price par aapko ride mil jani chahiye.")
+
+        with driver_col:
+            st.success("### For Driver")
+            st.write(f"Is route par winning bid **₨ {predicted_fare}** ke qareeb hai.")
+            st.write(f"**Mashwara:** Agar aap **₨ {predicted_fare - 20}** se **₨ {predicted_fare + 20}** ke darmiyan bid karenge toh acceptance ke chances 90% hain.")
+
+        st.warning(f"**Data Fact:** {pickup} se {dropoff} ke darmiyan {time_cat} mein aksar negotiation gap barh jata hai.")
