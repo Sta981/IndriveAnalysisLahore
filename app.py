@@ -285,7 +285,7 @@ elif page == "Survey Insights":
             st.plotly_chart(fig, use_container_width=True)
 
     with col5:
-        st.subheader("inDrive vs Careem/Uber/Bykea")
+        st.subheader("inDrive vs Careem/Yango/Bykea")
         app_c = safe_col(survey, "careem")
         if not app_c:
             app_c = safe_col(survey, "other")
